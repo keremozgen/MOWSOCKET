@@ -1,0 +1,37 @@
+#
+# project: MOWSOCKET
+#
+cmake_minimum_required(VERSION 2.8)
+if (ENABLE_UBSAN)
+	add_compile_options("-Wl, -fsanitize=undefined")
+endif()
+if (ENABLE_MSAN)
+	add_compile_options("-Wl, -fsanitize=memory")
+endif()
+if (ENABLE_TSAN)
+	add_compile_options("-Wl, -fsanitize=thread")
+endif()
+# include the fips main cmake file
+get_filename_component(FIPS_ROOT_DIR "../fips" ABSOLUTE)
+include("${FIPS_ROOT_DIR}/cmake/fips.cmake")
+
+# include_directories(src)
+
+fips_setup(PROJECT MOWSOCKET)
+fips_project(mowsocket)
+fips_begin_app(mowsocket cmdline)
+fips_vs_warning_level(3)
+if (FIPS_MSVC)
+        add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+endif()
+if(FIPS_EMSCRIPTEN)
+        add_definitions(-s FORCE_FILESYSTEM=1)
+endif()
+fips_files(mowsocket.c mowsocket.h)
+if (FIPS_ANDROID)
+        fips_dir(android)
+        fips_files(android_native_app_glue.c android_native_app_glue.h)
+        fips_libs(android log)
+endif()
+fips_end_app()
+fips_finish()
