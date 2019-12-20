@@ -1,6 +1,8 @@
 #include <time.h>
-#include <zconf.h>
+#if !defined(_WIN32)
+//#include <zconf.h>
 #include <sys/time.h>
+#endif
 #include "mowsocket.h"
 
 int print_adapters(struct mowadapter* adapters);
@@ -117,7 +119,7 @@ int main() {
 	printf("================START================\n");
 	int total_adapter_count = print_adapters(alladapters);
 	printf("================END OF START================\n");
-	for (int i = 0; i < 10; ++i) {
+	for (int i = 0; i < 0; ++i) {
 		if (alladapters) {
 			shuffle_adapters(&alladapters);
 			if(total_adapter_count != print_adapters(alladapters)){
@@ -132,8 +134,8 @@ int main() {
 	return MOWSOCKETERR;
 	}
 	m_clean_adapters(&alladapters);
-
-	if(0){
+	print_adapters(alladapters);
+	if(1){
 		struct mowsocket *udp_sock = msocket(MOW_IP4,MOW_UDP,MOW_LISTEN,0,3398);
 		struct mowsocket *tcp_sock = msocket(MOW_IP4,MOW_TCP,MOW_LISTEN,0,3340);
 		//if(MOWSOCKETERR == msetsockpredopt(tcp_sock,MOW_TCP_NODELAY)){printf("Can't set option\n");}
@@ -182,7 +184,7 @@ int main() {
 		if(MOWSOCKETERR == msetsockpredopt(tcp_sock,MOW_SO_DONTLINGER)){printf("Can't set option\n");}
 
 		if(NULL != udp_sock && NULL != tcp_sock) {
-			if(MOWSOCKETERR == mconnects(udp_sock,alladapters[0].h_address,3398)){
+			if(MOWSOCKETERR == mconnects(udp_sock,alladapters[1].h_address,3398)){
 				printf("Can't connect to peer\n");
 			}
 			char *SERVERMSG = "SERVERMSG3219900\0";
@@ -218,7 +220,7 @@ int main() {
 		else printf("Successfully tcp closed\n");
 	}
 
-
+	m_free_adapters(&alladapters);
 	return 0;
 
 	struct mowsocket *sock = msocket(MOW_IP4, MOW_UDP,MOW_SEND,0,3399);
@@ -270,7 +272,7 @@ int main() {
 		}
 		free(tbuf);
 		tbuf = calloc(100,1);
-		mrecvs(sock,tbuf,100);
+		//mrecvs(sock,tbuf,100);
 		printf("%s recvs\n",tbuf);
 		free(tbuf);
 

@@ -23,7 +23,11 @@
 #define MOW_SO_DONTLINGER 3
 #define MOW_TCP_NODELAY 4
 
+#ifdef _WIN32
+#define MOW_SOCKET_STRERROR() printf("\nERROR CODE: %d %s %s %d\n", WSAGetLastError(), strerror(errno),__FILE__,__LINE__)
+#else
 #define MOW_SOCKET_STRERROR() printf("\n%s %s %d\n",strerror(errno),__FILE__,__LINE__)
+#endif
 
 //GENERAL DEBUG DEFINES HERE
 #ifdef _DEBUG
@@ -76,8 +80,13 @@
 
 
 //DEFINE MOWFILE VARIABLES HERE
+
+#ifdef _WIN32
+int MOWSOCKET_WIN_WSA_STARTUP = -1;
+#endif
+
 struct mowsocket {
-	int socketd;
+	int64_t socketd;
 	int *peerd;
 	int domain;
 	int type;
@@ -107,43 +116,43 @@ struct mowsocket *msocket(int domain, int type, int action, uint32_t h_address, 
 
 uint64_t msend(int sockd, void *data, uint64_t data_len);    //SEND WORKS ONLY IF CONNECTED
 
-int64_t msends(struct mowsocket *mow_socket, void *data, uint64_t data_len);    //SEND WORKS ONLY IF CONNECTED
+uint64_t msends(struct mowsocket *mow_socket, void *data, uint64_t data_len);    //SEND WORKS ONLY IF CONNECTED
 
-int64_t msendto(int sockd, void *data, uint64_t data_len, uint32_t h_p_address, uint16_t h_p_port);
+uint64_t msendto(int sockd, void *data, uint64_t data_len, uint32_t h_p_address, uint16_t h_p_port);
 
 uint64_t mrecv(int sockd, void *data, uint64_t data_len);    //RECEIVE WORKS ONLY IF CONNECTED
 
-int64_t mrecvsu(struct mowsocket *mow_udp_socket, void *data, uint64_t data_len);	//RECEIVE WORKS ONLY IF CONNECTED
+uint64_t mrecvsu(struct mowsocket *mow_udp_socket, void *data, uint64_t data_len);	//RECEIVE WORKS ONLY IF CONNECTED
 
-int64_t mrecvst(struct mowsocket *mow_tcp_socket, int acceptfd, void *data, uint64_t data_len);	//RECEIVE WORKS ONLY IF CONNECTED
+uint64_t mrecvst(struct mowsocket *mow_tcp_socket, int acceptfd, void *data, uint64_t data_len);	//RECEIVE WORKS ONLY IF CONNECTED
 
-int64_t mrecvfrom(int sockd, void *data, uint64_t data_len, uint32_t *h_p_address, uint16_t *h_p_port);
+uint64_t mrecvfrom(int sockd, void *data, uint64_t data_len, uint32_t *h_p_address, uint16_t *h_p_port);
 
 int mconnect(int sockd, uint32_t h_p_address, uint16_t h_p_port);
 
 int mconnects(struct mowsocket *mow_socket, uint32_t h_p_address, uint16_t h_p_port);
 
-int maccept(int sockd, uint32_t *h_p_address, uint16_t *h_p_port);
+uint64_t maccept(int sockd, uint32_t *h_p_address, uint16_t *h_p_port);
 
-int maccepts(struct mowsocket *mow_socket, uint32_t *h_p_address, uint16_t *h_p_port);
+uint64_t maccepts(struct mowsocket *mow_socket, uint32_t *h_p_address, uint16_t *h_p_port);
 
-int msetsockopt(int sockfd, int optname, const void *optval, int optlen);
+int msetsockopt(int64_t sockfd, int optname, const void *optval, int optlen);
 
 int msetsockpredopt(struct mowsocket *sock, int MOW_OPT_NAME);
 
 //IMPLEMENT MOW FUNCTIONS HERE
 
-int maccept(int sockd, uint32_t *h_p_address, uint16_t *h_p_port){
+uint64_t maccept(int sockd, uint32_t *h_p_address, uint16_t *h_p_port){
 	struct sockaddr_in sa;
 	int sa_len = sizeof(struct sockaddr_in);
-	int r = accept(sockd,(struct sockaddr*)&sa,&sa_len);
+	uint64_t r = accept(sockd,(struct sockaddr*)&sa,&sa_len);
 	if(-1 == r) return MOWSOCKETERR;
 	if(NULL != h_p_address) *h_p_address = ntohl(sa.sin_addr.s_addr);
 	if(NULL != h_p_port) *h_p_port = ntohs(sa.sin_port);
 	return r;
 }
 
-int maccepts(struct mowsocket *mow_socket, uint32_t *h_p_address, uint16_t *h_p_port){
+uint64_t maccepts(struct mowsocket *mow_socket, uint32_t *h_p_address, uint16_t *h_p_port){
 	if (NULL == mow_socket) {
 		printf("Socket is a null pointer\n");
 		return MOWSOCKETERR;
@@ -156,7 +165,7 @@ int maccepts(struct mowsocket *mow_socket, uint32_t *h_p_address, uint16_t *h_p_
 	}
 	struct sockaddr_in sa;
 	int sa_len = sizeof(struct sockaddr_in);
-	int r = accept(mow_socket->socketd,(struct sockaddr*)&sa,&sa_len);
+	uint64_t r = accept(mow_socket->socketd,(struct sockaddr*)&sa,&sa_len);
 	if(-1 == r){
 		MOW_SOCKET_STRERROR();
 		return MOWSOCKETERR;
@@ -171,7 +180,7 @@ int mconnect(int sockd, uint32_t h_p_address, uint16_t h_p_port) {
 	sa.sin_family = AF_INET;
 	sa.sin_addr.s_addr = htonl(h_p_address);
 	sa.sin_port = htons(h_p_port);
-	int r = connect(sockd, (struct sockaddr_in *) &sa, sizeof(struct sockaddr_in));
+	int r = connect(sockd, (struct sockaddr*) &sa, sizeof(struct sockaddr_in));
 	if (0 == r) return MOWSOCKETOK;
 	return MOWSOCKETERR;
 }
@@ -185,7 +194,7 @@ int mconnects(struct mowsocket *mow_socket, uint32_t h_p_address, uint16_t h_p_p
 	sa.sin_family = AF_INET;
 	sa.sin_addr.s_addr = htonl(h_p_address);
 	sa.sin_port = htons(h_p_port);
-	int r = connect(mow_socket->socketd, (struct sockaddr_in *) &sa, sizeof(struct sockaddr_in));
+	int r = connect(mow_socket->socketd, (struct sockaddr*) &sa, sizeof(struct sockaddr_in));
 	if (0 == r) return MOWSOCKETOK;
 	return MOWSOCKETERR;
 }
@@ -195,7 +204,11 @@ uint64_t mrecv(int sockd, void *data, uint64_t data_len) {
 		MOW_SOCKET_ERROR("Data or length is 0\n");
 		return 0;
 	}
-	ssize_t ret = read(sockd, data, data_len);
+#ifdef _WIN32
+	int64_t ret = recv(sockd, data, data_len,0);
+#else
+	int64_t ret = read(sockd, data, data_len);
+#endif
 	if (ret < 0) {
 		MOW_SOCKET_STRERROR();
 		return 0;
@@ -203,7 +216,7 @@ uint64_t mrecv(int sockd, void *data, uint64_t data_len) {
 	return (uint64_t) ret;
 }
 
-int64_t mrecvst(struct mowsocket *mow_tcp_socket, int acceptfd, void *data, uint64_t data_len){
+uint64_t mrecvst(struct mowsocket *mow_tcp_socket, int acceptfd, void *data, uint64_t data_len){
 	if (NULL == data || 0 == data_len) {
 		MOW_SOCKET_ERROR("Data or length is 0\n");
 		return 0;
@@ -216,7 +229,11 @@ int64_t mrecvst(struct mowsocket *mow_tcp_socket, int acceptfd, void *data, uint
 		MOW_SOCKET_ERROR("Accepted descriptor is same with socket descriptor\n");
 		return 0;
 	}
-	ssize_t ret = read(acceptfd, data, data_len);
+#ifdef _WIN32
+	int64_t ret = recv(acceptfd, data, data_len,0);
+#else
+	int64_t ret = read(acceptfd, data, data_len);
+#endif
 	if (ret < 0) {
 		MOW_SOCKET_STRERROR();
 		return 0;
@@ -225,7 +242,7 @@ int64_t mrecvst(struct mowsocket *mow_tcp_socket, int acceptfd, void *data, uint
 
 }
 
-int64_t mrecvsu(struct mowsocket *mow_udp_socket, void *data, uint64_t data_len) {
+uint64_t mrecvsu(struct mowsocket *mow_udp_socket, void *data, uint64_t data_len) {
 	if (NULL == data || 0 == data_len) {
 		MOW_SOCKET_ERROR("Data or length is 0\n");
 		return 0;
@@ -238,7 +255,11 @@ int64_t mrecvsu(struct mowsocket *mow_udp_socket, void *data, uint64_t data_len)
 		MOW_SOCKET_ERROR("Can't receive from TCP socket without accept fd\n");
 		return 0;
 	}
-	ssize_t ret = read(mow_udp_socket->socketd, data, data_len);
+#ifdef _WIN32
+	int64_t ret = recv(mow_udp_socket->socketd, data, data_len,0);
+#else
+	int64_t ret = read(mow_udp_socket->socketd, data, data_len);
+#endif
 	if (ret < 0) {
 		MOW_SOCKET_STRERROR();
 		return 0;
@@ -246,14 +267,14 @@ int64_t mrecvsu(struct mowsocket *mow_udp_socket, void *data, uint64_t data_len)
 	return (uint64_t) ret;
 }
 
-int64_t mrecvfrom(int sockd, void *data, uint64_t data_len, uint32_t *h_p_address, uint16_t *h_p_port) {
+uint64_t mrecvfrom(int sockd, void *data, uint64_t data_len, uint32_t *h_p_address, uint16_t *h_p_port) {
 	if (NULL == data || 0 == data_len) {
 		MOW_SOCKET_ERROR("Data or length is 0\n");
 		return 0;
 	}
 	struct sockaddr_in sa;
 	uint32_t len = sizeof(struct sockaddr_in);
-	ssize_t ret = recvfrom(sockd, data, data_len, 0, &sa, &len);
+	int64_t ret = recvfrom(sockd, data, data_len, 0, (struct sockaddr*)&sa, &len);
 	if (ret < 0) {
 		MOW_SOCKET_STRERROR();
 		return 0;
@@ -270,19 +291,19 @@ int msetsockpredopt(struct mowsocket *sock, int MOW_OPT_NAME) {
 	}
 	int optval = 1;
 	if (MOW_SO_BROADCAST == MOW_OPT_NAME && MOW_UDP == sock->type) {
-		if (setsockopt(sock->socketd, SOL_SOCKET, SO_BROADCAST, &optval, sizeof(int)) != 0) {
+		if (MOWSOCKETOK != msetsockopt(sock->socketd, SO_BROADCAST, &optval, sizeof(int))) {
 			MOW_SOCKET_ERROR("MSETSOCKOPT");
 			return MOWSOCKETERR;
 		} else return MOWSOCKETOK;
 	} else if (MOW_SO_REUSEADDR == MOW_OPT_NAME) {
-		if (setsockopt(sock->socketd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(int)) != 0) {
+		if (MOWSOCKETOK != msetsockopt(sock->socketd, SO_REUSEADDR, &optval, sizeof(int))) {
 			MOW_SOCKET_ERROR("MSETSOCKOPT SO_REUSEADDR");
 			return MOWSOCKETERR;
 		}
 		#ifdef _WIN32
 		else return MOWSOCKETOK;
 		#else
-		if (setsockopt(sock->socketd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(int)) != 0) {
+		if (MOWSOCKETOK != msetsockopt(sock->socketd, SO_REUSEPORT, &optval, sizeof(int))) {
 			MOW_SOCKET_ERROR("MSETSOCKOPT SO_REUSEPORT")
 			return MOWSOCKETERR;
 		}
@@ -291,12 +312,12 @@ int msetsockpredopt(struct mowsocket *sock, int MOW_OPT_NAME) {
 		struct linger slinger;
 		slinger.l_onoff = 1;
 		slinger.l_linger = 0;
-		if (setsockopt(sock->socketd, SOL_SOCKET, SO_LINGER, &slinger, sizeof(struct linger)) != 0) {
+		if (MOWSOCKETOK != msetsockopt(sock->socketd, SO_LINGER, &slinger, sizeof(struct linger))) {
 			MOW_SOCKET_ERROR("MSETSOCKOPT SO_LINGER");
 			return MOWSOCKETERR;
 		} else return MOWSOCKETOK;
 	} else if(MOW_TCP == sock->type && MOW_TCP_NODELAY == MOW_OPT_NAME){
-		if (setsockopt(sock->socketd, IPPROTO_TCP, TCP_NODELAY, &optval, sizeof(int)) != 0) {
+		if (0 != setsockopt(sock->socketd, IPPROTO_TCP, TCP_NODELAY, &optval, sizeof(int))) {
 			MOW_SOCKET_ERROR("MSETSOCKOPT TCP_NODELAY");
 			return MOWSOCKETERR;
 		} else return MOWSOCKETOK;
@@ -307,15 +328,15 @@ int msetsockpredopt(struct mowsocket *sock, int MOW_OPT_NAME) {
 	}
 }
 
-int msetsockopt(int sockfd, int optname, const void *optval, int optlen) {
-	if (setsockopt(sockfd, SOL_SOCKET, optname, optval, optlen) != 0) {
-		MOW_SOCKET_ERROR("MSETSOCKOPT")
+int msetsockopt(int64_t sockfd, int optname, const void *optval, int optlen) {
+	if (0 != setsockopt(sockfd, SOL_SOCKET, optname, optval, optlen)) {
+		MOW_SOCKET_ERROR("MSETSOCKOPT");
 		return MOWSOCKETERR;
 	} else return MOWSOCKETOK;
 }
 
 
-int64_t msendto(int sockd, void *data, uint64_t data_len, uint32_t h_p_address, uint16_t h_p_port) {
+uint64_t msendto(int sockd, void *data, uint64_t data_len, uint32_t h_p_address, uint16_t h_p_port) {
 	if (NULL == data || 0 == data_len) {
 		MOW_SOCKET_ERROR("Data or length is 0\n");
 		return 0;
@@ -325,7 +346,7 @@ int64_t msendto(int sockd, void *data, uint64_t data_len, uint32_t h_p_address, 
 	sa.sin_addr.s_addr = htonl(h_p_address);
 	sa.sin_port = htons(h_p_port);
 
-	ssize_t ret = sendto(sockd, data, data_len, 0, (struct sockaddr *) &sa, sizeof(struct sockaddr));
+	int64_t ret = sendto(sockd, data, data_len, 0, (struct sockaddr *) &sa, sizeof(struct sockaddr));
 	if (ret < 0) {
 		MOW_SOCKET_STRERROR();
 		return 0;
@@ -337,7 +358,7 @@ int64_t msendto(int sockd, void *data, uint64_t data_len, uint32_t h_p_address, 
 	return (uint64_t) ret;
 }
 
-int64_t msends(struct mowsocket *mow_socket, void *data, uint64_t data_len) {
+uint64_t msends(struct mowsocket *mow_socket, void *data, uint64_t data_len) {
 	if (NULL == data || 0 == data_len) {
 		MOW_SOCKET_ERROR("Data or length is 0\n");
 		return 0;
@@ -346,8 +367,11 @@ int64_t msends(struct mowsocket *mow_socket, void *data, uint64_t data_len) {
 		printf("Socket is a null pointer\n");
 		return 0;
 	}
-
-	ssize_t ret = write(mow_socket->socketd, data, data_len);
+#ifdef _WIN32
+	int64_t ret = send(mow_socket->socketd, data, data_len, 0);
+#else
+	int64_t ret = write(mow_socket->socketd, data, data_len);
+#endif
 	if (ret < 0) {
 		MOW_SOCKET_STRERROR();
 		return 0;
@@ -362,7 +386,7 @@ uint64_t msend(int sockd, void *data, uint64_t data_len) {
 		MOW_SOCKET_ERROR("Data or length is 0\n");
 		return 0;
 	}
-	ssize_t ret = write(sockd, data, data_len);
+	int64_t ret = write(sockd, data, data_len);
 	if (ret < 0) {
 		MOW_SOCKET_STRERROR();
 		return 0;
@@ -373,7 +397,17 @@ uint64_t msend(int sockd, void *data, uint64_t data_len) {
 }
 
 struct mowsocket *msocket(int domain, int type, int action, uint32_t h_address, uint16_t h_port) {
-	__label__ MSOCKET_RETURN, MSOCKET_FREE_STRUCT;
+#ifdef _WIN32
+	if (0 != MOWSOCKET_WIN_WSA_STARTUP) {
+		WSADATA wsaData;
+		MOWSOCKET_WIN_WSA_STARTUP = WSAStartup(MAKEWORD(2, 2), &wsaData);
+		if (MOWSOCKET_WIN_WSA_STARTUP != 0) {
+			printf("WSAStartup failed: %d\n", MOWSOCKET_WIN_WSA_STARTUP);
+			MOW_SOCKET_STRERROR();
+			return NULL;
+		}
+	}
+#endif
 	struct mowsocket *ret = NULL;
 	int s_domain = 0, s_type = 0, s_protocol = 0;
 	//CONTROL PARAMETERS
@@ -392,7 +426,7 @@ struct mowsocket *msocket(int domain, int type, int action, uint32_t h_address, 
 		MOW_SOCKET_ERROR("Unsupported socket action\n");
 		goto MSOCKET_RETURN;
 	}
-	int sd = socket(s_domain, s_type, s_protocol);
+	int64_t sd = socket(s_domain, s_type, s_protocol);
 	if (sd < 0) {
 		MOW_SOCKET_STRERROR();
 	}
@@ -437,7 +471,6 @@ struct mowsocket *msocket(int domain, int type, int action, uint32_t h_address, 
 }
 
 int mclose(struct mowsocket **socket_pointer) {
-	__label__ MCLOSE_RET;
 	int ret = MOWSOCKETERR;
 	if (NULL == socket_pointer || NULL == *socket_pointer) {
 		printf("Trying to close a null socket pointer!\n");
@@ -446,7 +479,11 @@ int mclose(struct mowsocket **socket_pointer) {
 	//OTHER FUNCTIONS
 	if (MOW_TCP == (*socket_pointer)->type &&
 		NULL != (*socket_pointer)->peerd) {    //SHUTDOWN CONNECTION IF THERE ARE PEERS
+#ifdef _WIN32
+		int shutdown_ret = shutdown((*socket_pointer)->socketd, SD_BOTH);
+#else
 		int shutdown_ret = shutdown((*socket_pointer)->socketd, SHUT_RDWR);
+#endif
 		if (0 != shutdown_ret) {
 			MOW_SOCKET_STRERROR();
 		}
@@ -473,7 +510,7 @@ void m_clean_adapters(struct mowadapter **adapter) {
 		struct mowadapter *c_adapter = *adapter, *p_adapter = c_adapter;
 		int relocated = 0;
 		while (c_adapter) {
-			if (c_adapter->h_address == INADDR_LOOPBACK) {    //IF LOOPBACK
+			if (c_adapter->h_address == INADDR_LOOPBACK || c_adapter->h_address == INADDR_ANY) {    //IF LOOPBACK
 				relocated++;
 				if (p_adapter == c_adapter) {
 					c_adapter = c_adapter->next;
@@ -496,9 +533,9 @@ void m_clean_adapters(struct mowadapter **adapter) {
 }
 
 #ifdef _WIN32
-struct mowadapter** m_get_adapters() {
+struct mowadapter* m_get_adapters() {
 	//MSDN STYLE OF GETTING ADAPTERS
-	struct mowadapter** adapters = NULL;
+	struct mowadapter* head_adapter = NULL, * c_adapter = NULL, * p_adapter = NULL;
 	PIP_ADAPTER_INFO pAdapterInfo = NULL;
 	PIP_ADAPTER_INFO pAdapter = NULL;
 	DWORD dwRetVal = 0;
@@ -525,14 +562,17 @@ struct mowadapter** m_get_adapters() {
 	if ((dwRetVal = GetAdaptersInfo(pAdapterInfo, &ulOutBufLen)) == NO_ERROR) {
 		pAdapter = pAdapterInfo;
 		while (pAdapter) {
-			adapter_count++;
-			struct mowadapter** t = realloc(adapters, (adapter_count + 1) * sizeof(struct mowadapter*));
-			assert(t);
-			if (NULL == t) {
-				MOW_SOCKET_ERROR("Can't reallocate memory");
-				goto MOW_SOCKET_FREE_STRUCT;
+			if (NULL == c_adapter) {
+				c_adapter = (struct mowadapter*) calloc(sizeof(struct mowadapter), 1);
+				if (NULL == c_adapter) {
+					MOW_SOCKET_ERROR("Can't allocate memory for adapter\n");
+					assert(c_adapter);
+					goto MOW_SOCKET_FREE_STRUCT;
+				}
+				if (0 == adapter_count) head_adapter = c_adapter;
+				else p_adapter->next = c_adapter;
 			}
-			struct mowadapter* adapter = NULL;
+			adapter_count++;
 			uint32_t n_addr = 0;
 			uint32_t n_mask = 0;
 			char tt[16] = "192.168.1.28";
@@ -542,25 +582,15 @@ struct mowadapter** m_get_adapters() {
 			tu = htonl(tu);
 			char kk[16];
 			inet_ntop(AF_INET, &tu, kk, 16);
-			//printf("%s\n", kk);
-
-
 			switch (InetPtonA(AF_INET, pAdapter->IpAddressList.IpAddress.String, &n_addr)
 				| InetPtonA(AF_INET, pAdapter->IpAddressList.IpMask.String, &n_mask))
 			{
 			case 1:	//NO ERROR
-				adapter = calloc(sizeof(struct mowadapter), 1);
-				assert(adapter);
-				if (NULL == adapter) {
-					MOW_SOCKET_ERROR("Can't reallocate memory");
-					goto MOW_SOCKET_FREE_STRUCT;
-				}
-				adapters = t;
-				adapters[adapter_count - 1] = adapter;
-				adapters[adapter_count] = NULL;
-				adapter->h_address = ntohl(n_addr);
-				adapter->h_netmask = ntohl(n_mask);
-				adapter->h_broadcast = ntohl(n_addr | ~(n_mask));
+				c_adapter->h_address = ntohl(n_addr);
+				c_adapter->h_netmask = ntohl(n_mask);
+				c_adapter->h_broadcast = ntohl(n_addr | ~(n_mask));
+				p_adapter = c_adapter;
+				c_adapter = c_adapter->next;
 				break;
 			case 0:
 				printf("%s %s\n", pAdapter->IpAddressList.IpAddress.String, pAdapter->IpAddressList.IpMask.String);
@@ -579,15 +609,15 @@ struct mowadapter** m_get_adapters() {
 	else {
 		printf("GetAdaptersInfo failed with error: %d\n", dwRetVal);
 	}
+
+	if (0 == adapter_count) goto MOW_SOCKET_FREE_STRUCT;
 	goto MOW_SOCKET_ADAPTERS_RETURN;
 MOW_SOCKET_FREE_STRUCT:
-	if (NULL != adapters) m_free_adapters(adapters);
+	if (NULL != head_adapter) m_free_adapters(head_adapter);
 MOW_SOCKET_ADAPTERS_RETURN:
 	if (pAdapterInfo)
 		free(pAdapterInfo);
-	return adapters;
-
-
+	return head_adapter;
 }
 #else
 
