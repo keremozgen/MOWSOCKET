@@ -4,7 +4,7 @@
 #include <sys/time.h>
 #endif
 #include "mowsocket.h"
-
+#include <limits.h>
 int print_adapters(struct mowadapter* adapters);
 void print_adapter(struct mowadapter* adapters);
 void print_adapter(struct mowadapter* adapters) {
@@ -114,27 +114,105 @@ int main() {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	_CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_DEBUG);
 #endif
-
 	struct mowadapter* alladapters = m_get_adapters();
-	printf("================START================\n");
-	int total_adapter_count = print_adapters(alladapters);
-	printf("================END OF START================\n");
-	for (int i = 0; i < 0; ++i) {
-		if (alladapters) {
-			shuffle_adapters(&alladapters);
-			if(total_adapter_count != print_adapters(alladapters)){
-				printf("Adapter count changed\n");
-			}
-		}
-	}
-	if(NULL != alladapters) m_free_adapters(&alladapters);
-	alladapters = m_get_adapters();
-	if(NULL == alladapters){
-	printf("Can't get adapters\n");
-	return MOWSOCKETERR;
+	if (NULL == alladapters) {
+		printf("Can't get adapters\n");
+		return MOWSOCKETERR;
 	}
 	m_clean_adapters(&alladapters);
 	print_adapters(alladapters);
+	
+
+#if !defined(WIN32)
+		
+		struct mowsocket* us = msocket(MOW_IP4, MOW_TCP, MOW_LISTEN, 0, 8888);
+		if (MOWSOCKETERR == msetsockpredopt(us, MOW_SO_BROADCAST)) { printf("Can't set BROADCAST option\n"); }
+		if (MOWSOCKETERR == msetsockpredopt(us, MOW_SO_DONTLINGER)) { printf("Can't set NOLINGER option\n"); }
+		if (us) {
+			char* buffer = calloc(INT_MAX/10, sizeof(char));
+			if (NULL == buffer) {
+				printf("Can't create buffer\n");
+				return 0;
+			}
+			int64_t afd = 0;
+			ST:
+			afd = maccepts(us, NULL, NULL);
+			printf("Accepted socket %lld\n", afd);
+			while (1) {
+				if (MOWSOCKETERR == afd) {
+					printf("Can't accpet the socket\n");
+					return 0;
+				}
+				uint64_t r = -1;
+				uint64_t total = 0;
+				while (r > 0) {
+					r = mrecv(afd, buffer, INT_MAX/10);
+					total += r;
+					printf("%llu bytes received %llu\n", r, total);
+					if (0 == r) {
+						//mclose(&us);
+						goto ST;
+					}
+				}
+			}
+			return 0;
+		}
+		else {
+			printf("Can't create listening udp socket\n");
+			return 0;
+		}
+#else
+		struct mowsocket* us = msocket(MOW_IP4, MOW_TCP, MOW_SEND, 0, 0);
+		if (MOWSOCKETERR == msetsockpredopt(us, MOW_SO_BROADCAST)) { printf("Can't set BROADCAST option\n"); }
+		if (MOWSOCKETERR == msetsockpredopt(us, MOW_SO_DONTLINGER)) { printf("Can't set NOLINGER option\n"); }
+		if (us) {
+			char* buffer = malloc(INT_MAX * sizeof(char) / 10);
+			if (NULL == buffer) {
+				printf("Can't create buffer\n");
+				return 0;
+			}for (size_t i = 0; i < INT_MAX/10; i++)
+			{
+				buffer[i] = i + 1;
+			}
+			uint64_t t = INT_MAX/10;
+			uint64_t r = 0;
+			uint64_t total = 0;
+			printf("%llu is the sending decimal address\n", alladapters->h_broadcast);
+#ifdef WIN32
+			if (MOWSOCKETERR == mconnects(us, 2887588638, 8888)) {
+#else
+			if (MOWSOCKETERR == mconnects(us, 2887585793, 8888)) {
+#endif
+		
+				printf("Can't connect\n");
+				return 0;
+			}
+			while (t > 0) {
+				r = msends(us, buffer, INT_MAX/10);
+				if (0 == r) {
+					printf("Can't send message\n");
+				}
+				else {
+					printf("%llu sent\n", r);
+				}t -= r;
+				total += r;
+			}
+			printf("%llu bytes sent\n", total);
+			mclose(&us);
+			free(buffer);
+			m_free_adapters(&alladapters);
+			return 0;
+		}
+		else {
+			printf("Can't create listening udp socket\n");
+			return 0;
+		}
+#endif
+
+
+
+
+
 	if(1){
 		struct mowsocket *udp_sock = msocket(MOW_IP4,MOW_UDP,MOW_LISTEN,0,3398);
 		struct mowsocket *tcp_sock = msocket(MOW_IP4,MOW_TCP,MOW_LISTEN,0,3340);
