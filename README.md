@@ -1,6 +1,6 @@
 # MOWSOCKET
 MOW SOCKET is a cross platform, easy to use and a basic socket library. Currently only supports IPv4. It is a basic header file you can
-include it and start using. You don't need to use CMakeFile.txt or fips build tool. Only on android you may need to show ifaddrs-android.c ifaddrs-android.c as source files too.
+include it and start using. You don't need to use CMakeFile.txt or fips build tool. Only on android you may need to show ifaddrs-android.h ifaddrs-android.c as source files too.
 Here some functions are explained:
 	
 	struct mowadapter* m_get_adapters() You can get all network interfaces
