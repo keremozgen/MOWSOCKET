@@ -10,7 +10,7 @@ Here some functions are explained:
 	struct mowsocket* msocket(int domain, int type, int action, uint32_t h_address, uint16_t h_port)
 	Domain can be MOW_IP4 or MOW_IP6 but MOW_IP6 not supported yet.
 	Type can be MOW_UDP or MOW_TCP
-	Action can be MOW_SEND or MOW_LISTEN. MOW_LISTEN for creating a listening socket.
+	Action can be MOW_SEND or MOW_LISTEN. MOW_LISTEN for creating a listening socket. But a listening socket can send packets too.
 	Address and port are in the host order, can be used from adapter for a specific interface or INADDR_ANY, INADDR_BROADCAST.
    
 One thing to note is int* peerd; variable in mowsocket struct is not used currently. After accept use the returned socket descriptor and
